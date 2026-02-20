@@ -43,7 +43,9 @@ private:
     Bit* PieceForPlayer(const int playerNumber, ChessPiece piece);
     Player* ownerAt(int x, int y) const;
     void FENtoBoard(const std::string& fen);
+    void syncTurnFromFEN(const std::string& fen);
     char pieceNotation(int x, int y) const;
-
+    
     Grid* _grid;
+    std::string boardToFEN() const;
 };

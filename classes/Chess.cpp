@@ -46,21 +46,111 @@ void Chess::setUpBoard()
     _gameOptions.rowY = 8;
 
     _grid->initializeChessSquares(pieceSize, "boardsquare.png");
-    FENtoBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    FENtoBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
     startGame();
+    
+    // Re-apply turn from the FEN string after startGame() resets currentTurnNo
+    syncTurnFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+}
+void Chess::FENtoBoard(const std::string& fen)
+{
+    // 1. Split the FEN string to get only the piece placement (the first part)
+    // Example: "rnb... w KQkq" -> "rnb..."
+    std::string boardPart = fen.substr(0, fen.find(' '));
+
+    // 2. Clear the board completely
+    _grid->forEachSquare([](ChessSquare* square, int x, int y) {
+        square->destroyBit(); 
+    });
+
+    int file = 0;
+    int rank = 7; // Start at Rank 8 (index 7)
+
+    for (char c : boardPart) {
+        if (c == '/') {
+            rank--;
+            file = 0;
+        } else if (std::isdigit(c)) {
+            file += (c - '0');
+        } else {
+            // Determine Piece Type and Player
+            int playerNumber = std::isupper(c) ? 0 : 1;
+            ChessPiece piece = NoPiece;
+            char type = std::tolower(c);
+            
+            if (type == 'p') piece = Pawn;
+            else if (type == 'n') piece = Knight;
+            else if (type == 'b') piece = Bishop;
+            else if (type == 'r') piece = Rook;
+            else if (type == 'q') piece = Queen;
+            else if (type == 'k') piece = King;
+
+            if (piece != NoPiece) {
+                ChessSquare* square = _grid->getSquare(file, rank);
+                Bit* bit = PieceForPlayer(playerNumber, piece);
+                
+                // Tagging logic: White 1-6, Black 129-134
+                bit->setGameTag(playerNumber == 0 ? (int)piece : (int)piece + 128);
+                bit->setPosition(square->getPosition());
+                square->setBit(bit);
+            }
+            file++;
+        }
+    }
 }
 
-void Chess::FENtoBoard(const std::string& fen) {
-    // convert a FEN string to a board
-    // FEN is a space delimited string with 6 fields
-    // 1: piece placement (from white's perspective)
-    // NOT PART OF THIS ASSIGNMENT BUT OTHER THINGS THAT CAN BE IN A FEN STRING
-    // ARE BELOW
-    // 2: active color (W or B)
-    // 3: castling availability (KQkq or -)
-    // 4: en passant target square (in algebraic notation, or -)
-    // 5: halfmove clock (number of halfmoves since the last capture or pawn advance)
+void Chess::syncTurnFromFEN(const std::string& fen)
+{
+    // Extract the active player from FEN and sync the turn
+    size_t firstSpace = fen.find(' ');
+    if (firstSpace != std::string::npos && firstSpace + 1 < fen.length()) {
+        char turn = fen[firstSpace + 1];
+        int activePlayer = (turn == 'w') ? 0 : 1;
+        // Sync turn with the FEN's active player
+        // currentTurnNo & 1 determines whose turn it is (0 for even, 1 for odd)
+        while ((getCurrentPlayer()->playerNumber()) != activePlayer) {
+            endTurn();
+        }
+    }
+}
+
+std::string Chess::boardToFEN() const
+{
+    std::string fen;
+
+    for (int rank = 7; rank >= 0; rank--)  // 8 → 1
+    {
+        int emptyCount = 0;
+
+        for (int file = 0; file < 8; file++)
+        {
+            char piece = pieceNotation(file, rank);
+
+            if (piece == '0')
+            {
+                emptyCount++;
+            }
+            else
+            {
+                if (emptyCount > 0)
+                {
+                    fen += std::to_string(emptyCount);
+                    emptyCount = 0;
+                }
+
+                fen += piece;
+            }
+        }
+
+        if (emptyCount > 0)
+            fen += std::to_string(emptyCount);
+
+        if (rank > 0)
+            fen += '/';
+    }
+
+    return fen;
 }
 
 bool Chess::actionForEmptyHolder(BitHolder &holder)
@@ -122,10 +212,10 @@ std::string Chess::stateString()
     std::string s;
     s.reserve(64);
     _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
-            s += pieceNotation( x, y );
-        }
-    );
-    return s;}
+        s += pieceNotation(x, y);
+    });
+    return s;
+}
 
 void Chess::setStateString(const std::string &s)
 {
