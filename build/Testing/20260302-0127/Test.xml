@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Site BuildName="Darwin-clang++"
-	BuildStamp="20260217-0603-Experimental"
+	BuildStamp="20260302-0127-Experimental"
 	Name="Brodys-MacBook-Air.local"
 	Generator="ctest-4.2.1"
 	CompilerName="/usr/bin/clang++"
@@ -19,17 +19,17 @@
 	ProcessorCacheSize="131072"
 	NumberOfLogicalCPU="8"
 	NumberOfPhysicalCPU="8"
-	TotalVirtualMemory="5120"
+	TotalVirtualMemory="6144"
 	TotalPhysicalMemory="8192"
 	LogicalProcessorsPerPhysical="8"
 	ProcessorClockFrequency="0"
 	>
 	<Testing>
-		<StartDateTime>Feb 20 02:07 PST</StartDateTime>
-		<StartTestTime>1771582056</StartTestTime>
+		<StartDateTime>Mar 01 17:51 PST</StartDateTime>
+		<StartTestTime>1772416309</StartTestTime>
 		<TestList/>
-		<EndDateTime>Feb 20 02:07 PST</EndDateTime>
-		<EndTestTime>1771582056</EndTestTime>
+		<EndDateTime>Mar 01 17:51 PST</EndDateTime>
+		<EndTestTime>1772416309</EndTestTime>
 		<ElapsedMinutes>0</ElapsedMinutes>
 	</Testing>
 </Site>

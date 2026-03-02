@@ -52,6 +52,9 @@ void Chess::setUpBoard()
     
     // Re-apply turn from the FEN string after startGame() resets currentTurnNo
     syncTurnFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+    // Run move generation for the initial position.
+    generateLegalMoves();
 }
 void Chess::FENtoBoard(const std::string& fen)
 {
@@ -169,14 +172,178 @@ bool Chess::canBitMoveFrom(Bit &bit, BitHolder &src)
 
 bool Chess::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
 {
+    ChessSquare* srcSquare = dynamic_cast<ChessSquare*>(&src);
+    ChessSquare* dstSquare = dynamic_cast<ChessSquare*>(&dst);
+    
+    if (!srcSquare || !dstSquare) return false;
+    
+    int fromX = srcSquare->getColumn();
+    int fromY = srcSquare->getRow();
+    int toX = dstSquare->getColumn();
+    int toY = dstSquare->getRow();
+    
+    // Can't move to the same square
+    if (fromX == toX && fromY == toY) return false;
+    
+    // Can't move to a square occupied by your own piece
+    if (isOccupiedByFriend(toX, toY, getCurrentPlayer()->playerNumber())) return false;
+    
+    // Get the piece type from the bit's game tag
+    ChessPiece piece = static_cast<ChessPiece>(bit.gameTag() & 0x7F);
+    int playerNumber = getCurrentPlayer()->playerNumber();
+    
+    // Validate the move based on piece type
+    return isValidMove(fromX, fromY, toX, toY, piece, playerNumber);
+}
+
+bool Chess::isValidMove(int fromX, int fromY, int toX, int toY, ChessPiece piece, int playerNumber)
+{
+    switch (piece) {
+        case Pawn:
+            // Check for normal move or capture
+            return canPawnMove(fromX, fromY, toX, toY, playerNumber) ||
+                   canPawnCapture(fromX, fromY, toX, toY, playerNumber);
+        case Knight:
+            return canKnightMove(fromX, fromY, toX, toY);
+        case King:
+            return canKingMove(fromX, fromY, toX, toY);
+        case Rook:
+        case Bishop:
+        case Queen:
+            // Not implemented yet, return false for now
+            return false;
+        default:
+            return false;
+    }
+}
+
+bool Chess::canPawnMove(int fromX, int fromY, int toX, int toY, int playerNumber)
+{
+    // Pawns can only move forward (no capture)
+    int direction = (playerNumber == 0) ? 1 : -1;  // White moves up (+1), Black moves down (-1)
+    
+    // Can't move horizontally
+    if (fromX != toX) return false;
+    
+    // Can't move backward
+    if ((toY - fromY) * direction <= 0) return false;
+    
+    // Destination must be empty
+    if (_grid->getSquare(toX, toY)->bit() != nullptr) return false;
+    
+    // One square forward
+    if (toY == fromY + direction) {
+        return true;
+    }
+    
+    // Two squares forward from starting position
+    bool isStartingRank = (playerNumber == 0 && fromY == 1) || (playerNumber == 1 && fromY == 6);
+    if (isStartingRank && toY == fromY + 2 * direction) {
+        // Check if the square in between is empty
+        int middleY = fromY + direction;
+        if (_grid->getSquare(fromX, middleY)->bit() == nullptr) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+bool Chess::canPawnCapture(int fromX, int fromY, int toX, int toY, int playerNumber)
+{
+    // Pawns capture diagonally
+    int direction = (playerNumber == 0) ? 1 : -1;  // White moves up (+1), Black moves down (-1)
+    
+    // Must move diagonally forward
+    if (abs(fromX - toX) != 1) return false;
+    if (toY != fromY + direction) return false;
+    
+    // Destination must have an opponent's piece
+    return isOccupiedByOpponent(toX, toY, playerNumber);
+}
+
+bool Chess::canKnightMove(int fromX, int fromY, int toX, int toY)
+{
+    int dx = abs(toX - fromX);
+    int dy = abs(toY - fromY);
+    
+    // Knight moves in an L-shape: 2 squares in one direction, 1 in the other
+    return (dx == 2 && dy == 1) || (dx == 1 && dy == 2);
+}
+
+bool Chess::canKingMove(int fromX, int fromY, int toX, int toY)
+{
+    int dx = abs(toX - fromX);
+    int dy = abs(toY - fromY);
+    
+    // King can move one square in any direction
+    return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0);
+}
+
+bool Chess::isPathClear(int fromX, int fromY, int toX, int toY)
+{
+    // Helper function for future sliding pieces (Rook, Bishop, Queen)
+    int dx = (toX > fromX) ? 1 : (toX < fromX) ? -1 : 0;
+    int dy = (toY > fromY) ? 1 : (toY < fromY) ? -1 : 0;
+    
+    int x = fromX + dx;
+    int y = fromY + dy;
+    
+    while (x != toX || y != toY) {
+        if (_grid->getSquare(x, y)->bit() != nullptr) {
+            return false;
+        }
+        x += dx;
+        y += dy;
+    }
+    
     return true;
 }
+
+bool Chess::isOccupiedByOpponent(int x, int y, int playerNumber)
+{
+    if (!_grid->isValid(x, y)) return false;
+    
+    ChessSquare* square = _grid->getSquare(x, y);
+    if (!square || !square->bit()) return false;
+    
+    Bit* bit = square->bit();
+    int pieceColor = bit->gameTag() & 128;
+    int currentColor = playerNumber * 128;
+    
+    return pieceColor != currentColor;  // Different color means opponent
+}
+
+bool Chess::isOccupiedByFriend(int x, int y, int playerNumber)
+{
+    if (!_grid->isValid(x, y)) return false;
+    
+    ChessSquare* square = _grid->getSquare(x, y);
+    if (!square || !square->bit()) return false;
+    
+    Bit* bit = square->bit();
+    int pieceColor = bit->gameTag() & 128;
+    int currentColor = playerNumber * 128;
+    
+    return pieceColor == currentColor;  // Same color means friendly
+}
+
 
 void Chess::stopGame()
 {
     _grid->forEachSquare([](ChessSquare* square, int x, int y) {
         square->destroyBit();
     });
+}
+
+void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
+{
+    // Handle piece capture - if destination has a piece, it's already been handled by pieceTaken
+    // Just need to end the turn
+    endTurn();
+
+    // Run move generation for the side to move after turn switch.
+    generateLegalMoves();
 }
 
 Player* Chess::ownerAt(int x, int y) const
@@ -228,4 +395,46 @@ void Chess::setStateString(const std::string &s)
             square->setBit(nullptr);
         }
     });
+}
+
+std::vector<BitMove> Chess::generateLegalMoves()
+{
+    std::vector<BitMove> moves;
+    Player* currentPlayer = getCurrentPlayer();
+    if (!currentPlayer) {
+        return moves;
+    }
+    int playerNumber = currentPlayer->playerNumber();
+    int currentColor = playerNumber * 128;
+    
+    // Iterate through all squares on the board
+    _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
+        Bit* bit = square->bit();
+        
+        // Skip empty squares or opponent's pieces
+        if (!bit || (bit->gameTag() & 128) != currentColor) {
+            return;
+        }
+        
+        ChessPiece piece = static_cast<ChessPiece>(bit->gameTag() & 0x7F);
+        
+        // Try all possible destination squares
+        for (int toX = 0; toX < 8; toX++) {
+            for (int toY = 0; toY < 8; toY++) {
+                // Skip the source square
+                if (toX == x && toY == y) continue;
+                
+                // Check if this is a legal move
+                if (isValidMove(x, y, toX, toY, piece, playerNumber)) {
+                    // Don't add move if destination is occupied by friendly piece
+                    if (!isOccupiedByFriend(toX, toY, playerNumber)) {
+                        moves.push_back(BitMove(y * 8 + x, toY * 8 + toX, piece));
+                    }
+                }
+            }
+        }
+    });
+    printf("Generated %zu legal moves for player %d\n", moves.size(), playerNumber);
+    // At this line, 'moves' contains all legal moves for the current position
+    return moves;
 }

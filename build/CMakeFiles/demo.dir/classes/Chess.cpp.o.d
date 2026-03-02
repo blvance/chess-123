@@ -954,4 +954,5 @@ CMakeFiles/demo.dir/classes/Chess.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/assert.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/BitHolder.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Grid.h \
-  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/ChessSquare.h
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/ChessSquare.h \
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bitboard.h

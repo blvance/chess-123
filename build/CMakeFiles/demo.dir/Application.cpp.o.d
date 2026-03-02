@@ -959,4 +959,5 @@ CMakeFiles/demo.dir/Application.cpp.o: \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/ChessSquare.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Checkers.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Othello.h \
-  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Chess.h
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Chess.h \
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bitboard.h

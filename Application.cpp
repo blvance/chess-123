@@ -62,7 +62,8 @@ namespace ClassGame {
                         game->setUpBoard();
                     }
                 } else {
-                    ImGui::Text("Current Player Number: %d", game->getCurrentPlayer()->playerNumber());
+                    Player* currentPlayer = game->getCurrentPlayer();
+                    ImGui::Text("Current Player Number: %d", currentPlayer ? currentPlayer->playerNumber() : -1);
                     std::string stateString = game->stateString();
                     int stride = game->_gameOptions.rowX;
                     int height = game->_gameOptions.rowY;
@@ -76,7 +77,8 @@ namespace ClassGame {
 
                 ImGui::Begin("GameWindow");
                 if (game) {
-                    if (game->gameHasAI() && (game->getCurrentPlayer()->isAIPlayer() || game->_gameOptions.AIvsAI))
+                    Player* currentPlayer = game->getCurrentPlayer();
+                    if (currentPlayer && game->gameHasAI() && (currentPlayer->isAIPlayer() || game->_gameOptions.AIvsAI))
                     {
                         game->updateAI();
                     }

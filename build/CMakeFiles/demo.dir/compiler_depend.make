@@ -949,6 +949,7 @@ CMakeFiles/demo.dir/Application.cpp.o: /Users/brodyvance/Documents/CMPM123_V2/ch
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/imgui/imgui.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bit.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/BitHolder.h \
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bitboard.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Checkers.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Chess.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/ChessSquare.h \
@@ -3196,6 +3197,7 @@ CMakeFiles/demo.dir/classes/Chess.cpp.o: /Users/brodyvance/Documents/CMPM123_V2/
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/imgui/imgui.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bit.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/BitHolder.h \
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bitboard.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Chess.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/ChessSquare.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Entity.h \
@@ -11676,6 +11678,8 @@ CMakeFiles/demo.dir/main_macos.cpp.o: /Users/brodyvance/Documents/CMPM123_V2/che
 /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Entity.h:
 
 /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/ChessSquare.h:
+
+/Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bitboard.h:
 
 /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Bit.h:
 
