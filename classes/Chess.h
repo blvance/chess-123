@@ -31,7 +31,10 @@ public:
 
     Grid* getGrid() override { return _grid; }
     
-    // Move generation for debugging/analysis
+    // Assignment-required move generation entry point.
+    std::vector<BitMove> generateAllMoves();
+
+    // Backward-compatible alias used by existing code.
     std::vector<BitMove> generateLegalMoves();
 
 private:
@@ -50,6 +53,7 @@ private:
     bool isPathClear(int fromX, int fromY, int toX, int toY);
     bool isOccupiedByOpponent(int x, int y, int playerNumber);
     bool isOccupiedByFriend(int x, int y, int playerNumber);
+    uint64_t boardOccupancy() const;
     
     Grid* _grid;
     std::string boardToFEN() const;

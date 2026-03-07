@@ -3203,6 +3203,7 @@ CMakeFiles/demo.dir/classes/Chess.cpp.o: /Users/brodyvance/Documents/CMPM123_V2/
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Entity.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Game.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Grid.h \
+  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/MagicBitboards.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Player.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Sprite.h \
   /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Turn.h
@@ -13764,6 +13765,8 @@ CMakeFiles/demo.dir/main_macos.cpp.o: /Users/brodyvance/Documents/CMPM123_V2/che
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/ApplicationServices.framework/Frameworks/PrintCore.framework/Headers/PrintCore.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/ApplicationServices.framework/Frameworks/PrintCore.framework/Headers/PMDefinitions.h:
+
+/Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/MagicBitboards.h:
 
 /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/ctime:
 

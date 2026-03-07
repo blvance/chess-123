@@ -1,6 +1,8 @@
 #include "Chess.h"
+#include "MagicBitboards.h"
 #include <limits>
 #include <cmath>
+#include <cctype>
 
 Chess::Chess()
 {
@@ -54,7 +56,7 @@ void Chess::setUpBoard()
     syncTurnFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
     // Run move generation for the initial position.
-    generateLegalMoves();
+    generateAllMoves();
 }
 void Chess::FENtoBoard(const std::string& fen)
 {
@@ -198,6 +200,13 @@ bool Chess::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
 
 bool Chess::isValidMove(int fromX, int fromY, int toX, int toY, ChessPiece piece, int playerNumber)
 {
+    if (!_grid->isValid(fromX, fromY) || !_grid->isValid(toX, toY)) {
+        return false;
+    }
+
+    const int fromSq = fromY * 8 + fromX;
+    const int toSq = toY * 8 + toX;
+
     switch (piece) {
         case Pawn:
             // Check for normal move or capture
@@ -207,11 +216,18 @@ bool Chess::isValidMove(int fromX, int fromY, int toX, int toY, ChessPiece piece
             return canKnightMove(fromX, fromY, toX, toY);
         case King:
             return canKingMove(fromX, fromY, toX, toY);
-        case Rook:
-        case Bishop:
-        case Queen:
-            // Not implemented yet, return false for now
-            return false;
+        case Rook: {
+            uint64_t attacks = ratt(fromSq, boardOccupancy());
+            return (attacks & (1ULL << toSq)) != 0ULL;
+        }
+        case Bishop: {
+            uint64_t attacks = batt(fromSq, boardOccupancy());
+            return (attacks & (1ULL << toSq)) != 0ULL;
+        }
+        case Queen: {
+            uint64_t attacks = ratt(fromSq, boardOccupancy()) | batt(fromSq, boardOccupancy());
+            return (attacks & (1ULL << toSq)) != 0ULL;
+        }
         default:
             return false;
     }
@@ -328,6 +344,20 @@ bool Chess::isOccupiedByFriend(int x, int y, int playerNumber)
     return pieceColor == currentColor;  // Same color means friendly
 }
 
+uint64_t Chess::boardOccupancy() const
+{
+    uint64_t occ = 0ULL;
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            ChessSquare* square = _grid->getSquare(x, y);
+            if (square && square->bit()) {
+                occ |= (1ULL << (y * 8 + x));
+            }
+        }
+    }
+    return occ;
+}
+
 
 void Chess::stopGame()
 {
@@ -343,7 +373,7 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     endTurn();
 
     // Run move generation for the side to move after turn switch.
-    generateLegalMoves();
+    generateAllMoves();
 }
 
 Player* Chess::ownerAt(int x, int y) const
@@ -399,6 +429,11 @@ void Chess::setStateString(const std::string &s)
 
 std::vector<BitMove> Chess::generateLegalMoves()
 {
+    return generateAllMoves();
+}
+
+std::vector<BitMove> Chess::generateAllMoves()
+{
     std::vector<BitMove> moves;
     Player* currentPlayer = getCurrentPlayer();
     if (!currentPlayer) {
@@ -407,34 +442,102 @@ std::vector<BitMove> Chess::generateLegalMoves()
     int playerNumber = currentPlayer->playerNumber();
     int currentColor = playerNumber * 128;
     
-    // Iterate through all squares on the board
+    const uint64_t occ = boardOccupancy();
+    uint64_t friendlyOcc = 0ULL;
+
     _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
         Bit* bit = square->bit();
-        
-        // Skip empty squares or opponent's pieces
+        if (bit && (bit->gameTag() & 128) == currentColor) {
+            friendlyOcc |= (1ULL << (y * 8 + x));
+        }
+    });
+
+    _grid->forEachSquare([&](ChessSquare* square, int fromX, int fromY) {
+        Bit* bit = square->bit();
         if (!bit || (bit->gameTag() & 128) != currentColor) {
             return;
         }
-        
-        ChessPiece piece = static_cast<ChessPiece>(bit->gameTag() & 0x7F);
-        
-        // Try all possible destination squares
-        for (int toX = 0; toX < 8; toX++) {
-            for (int toY = 0; toY < 8; toY++) {
-                // Skip the source square
-                if (toX == x && toY == y) continue;
-                
-                // Check if this is a legal move
-                if (isValidMove(x, y, toX, toY, piece, playerNumber)) {
-                    // Don't add move if destination is occupied by friendly piece
-                    if (!isOccupiedByFriend(toX, toY, playerNumber)) {
-                        moves.push_back(BitMove(y * 8 + x, toY * 8 + toX, piece));
+
+        const ChessPiece piece = static_cast<ChessPiece>(bit->gameTag() & 0x7F);
+        const int fromSq = fromY * 8 + fromX;
+        uint64_t targets = 0ULL;
+
+        switch (piece) {
+            case Pawn: {
+                const int direction = (playerNumber == 0) ? 1 : -1;
+                const int startRank = (playerNumber == 0) ? 1 : 6;
+
+                int oneStepY = fromY + direction;
+                if (_grid->isValid(fromX, oneStepY) && _grid->getSquare(fromX, oneStepY)->bit() == nullptr) {
+                    targets |= (1ULL << (oneStepY * 8 + fromX));
+                    int twoStepY = fromY + 2 * direction;
+                    if (fromY == startRank && _grid->isValid(fromX, twoStepY) &&
+                        _grid->getSquare(fromX, twoStepY)->bit() == nullptr) {
+                        targets |= (1ULL << (twoStepY * 8 + fromX));
                     }
                 }
+
+                int captureY = fromY + direction;
+                int leftX = fromX - 1;
+                int rightX = fromX + 1;
+                if (_grid->isValid(leftX, captureY) && isOccupiedByOpponent(leftX, captureY, playerNumber)) {
+                    targets |= (1ULL << (captureY * 8 + leftX));
+                }
+                if (_grid->isValid(rightX, captureY) && isOccupiedByOpponent(rightX, captureY, playerNumber)) {
+                    targets |= (1ULL << (captureY * 8 + rightX));
+                }
+                break;
             }
+            case Knight: {
+                static const int offsets[8][2] = {
+                    {1, 2}, {2, 1}, {2, -1}, {1, -2},
+                    {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}
+                };
+                for (const auto &o : offsets) {
+                    int toX = fromX + o[0];
+                    int toY = fromY + o[1];
+                    if (_grid->isValid(toX, toY)) {
+                        targets |= (1ULL << (toY * 8 + toX));
+                    }
+                }
+                break;
+            }
+            case Bishop:
+                targets = batt(fromSq, occ);
+                break;
+            case Rook:
+                targets = ratt(fromSq, occ);
+                break;
+            case Queen:
+                targets = batt(fromSq, occ) | ratt(fromSq, occ);
+                break;
+            case King: {
+                static const int offsets[8][2] = {
+                    {1, 1}, {1, 0}, {1, -1}, {0, -1},
+                    {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}
+                };
+                for (const auto &o : offsets) {
+                    int toX = fromX + o[0];
+                    int toY = fromY + o[1];
+                    if (_grid->isValid(toX, toY)) {
+                        targets |= (1ULL << (toY * 8 + toX));
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+        }
+
+        targets &= ~friendlyOcc;
+
+        while (targets) {
+            int toSq = getFirstBit(targets);
+            targets &= (targets - 1);
+            moves.push_back(BitMove(fromSq, toSq, piece));
         }
     });
+
     printf("Generated %zu legal moves for player %d\n", moves.size(), playerNumber);
-    // At this line, 'moves' contains all legal moves for the current position
     return moves;
 }

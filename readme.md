@@ -17,7 +17,7 @@ This will allow you to quickly check that your castling, promotion and en passan
 - Fixed type declaration issues between `Chess.h` and `Bitboard.h`:
   - Removed duplicate `ChessPiece` enum from `Chess.h`.
   - `Chess` now uses the shared `ChessPiece`/`BitMove` types from `Bitboard.h`.
-- Implemented and validated `Chess::generateLegalMoves()` integration.
+- Implemented and validated `Chess::generateAllMoves()` (with `generateLegalMoves()` kept as a compatibility alias).
   - Added safety guard for missing current player.
   - Corrected move index encoding to `rank * 8 + file` (`y * 8 + x`).
 - Hooked move generation into game flow:
@@ -53,12 +53,25 @@ This will allow you to quickly check that your castling, promotion and en passan
   - Horizontal, vertical, or diagonal.
 - Zero-distance moves are rejected.
 
+### Rook, bishop, and queen moves
+- Integrated `MagicBitboards.h` sliding attack generation:
+  - Rook attacks use `ratt(square, occupancy)`.
+  - Bishop attacks use `batt(square, occupancy)`.
+  - Queen attacks use rook+bishop union.
+- Sliding pieces stop at blockers automatically and include capture squares.
+- Friendly-occupied destination squares are filtered out.
+
 ### Shared legality checks
 - Moves to the same square are rejected.
 - Moves onto a square occupied by a friendly piece are rejected.
+- Turn-based movement is enforced:
+  - White and black alternate via `endTurn()`.
+  - Only the active player's pieces can be moved.
+- Captures are supported for all pieces:
+  - Destination enemy piece is removed from the board when a legal capture is made.
+  - Pawn captures remain diagonal-only.
 
 ### Not implemented yet
-- Rook, bishop, and queen legal movement.
 - Castling.
 - En passant.
 - Pawn promotion.

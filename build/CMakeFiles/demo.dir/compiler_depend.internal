@@ -3208,6 +3208,7 @@ CMakeFiles/demo.dir/classes/Chess.cpp.o
  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Entity.h
  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Game.h
  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Grid.h
+ /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/MagicBitboards.h
  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Player.h
  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Sprite.h
  /Users/brodyvance/Documents/CMPM123_V2/chess-123/classes/Turn.h

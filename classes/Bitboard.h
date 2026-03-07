@@ -81,9 +81,9 @@ private:
 };
 
 struct BitMove {
-    uint8_t from;
-    uint8_t to;
-    uint8_t piece;
+    int from;
+    int to;
+    int piece;
     
     BitMove(int from, int to, ChessPiece piece)
         : from(from), to(to), piece(piece) { }
