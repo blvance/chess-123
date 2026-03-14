@@ -76,3 +76,25 @@ This will allow you to quickly check that your castling, promotion and en passan
 - En passant.
 - Pawn promotion.
 - Full check/checkmate legality filtering.
+
+## Chess AI Update
+
+- Added a negamax AI with alpha-beta pruning in `Chess`.
+- Search depth: `3` plies (configurable via `kChessAIDepth` in `classes/Chess.cpp`).
+- AI side: currently set to Black (`kChessAIPlayer = 1`), so you play White by default.
+- Move generation in search uses the same piece rules as gameplay, including slider attacks via `MagicBitboards.h`.
+- Evaluation uses material values plus a small center-control positional bonus.
+
+### Challenges
+
+- Avoiding UI-object mutation during search:
+  - Search now uses a lightweight `BoardState` array instead of mutating `Bit`/`ChessSquare` objects.
+- Keeping search and gameplay move rules consistent:
+  - Added shared board-state move generation for the AI (`generateAllMovesForBoard`).
+- Making captures safe when applying AI moves to the live board:
+  - AI applies the chosen move through holder logic and then calls the existing turn-end path.
+
+### Current Play Strength
+
+- The AI responds quickly at depth 3 and makes legal captures and tactical material trades.
+- It is not check-aware (no check/checkmate legality filtering yet), so strength is limited to pseudo-legal tactical play.

@@ -64,6 +64,14 @@ namespace ClassGame {
                 } else {
                     Player* currentPlayer = game->getCurrentPlayer();
                     ImGui::Text("Current Player Number: %d", currentPlayer ? currentPlayer->playerNumber() : -1);
+
+                    if (Chess* chess = dynamic_cast<Chess*>(game)) {
+                        ImGui::Separator();
+                        ImGui::Text("AI Search Depth: %d", chess->getLastSearchDepth());
+                        ImGui::Text("AI Nodes Searched: %llu", (unsigned long long)chess->getLastSearchNodeCount());
+                        ImGui::Text("AI Search Time: %.2f ms", chess->getLastSearchTimeMs());
+                    }
+
                     std::string stateString = game->stateString();
                     int stride = game->_gameOptions.rowX;
                     int height = game->_gameOptions.rowY;
