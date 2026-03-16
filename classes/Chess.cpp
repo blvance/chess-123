@@ -57,7 +57,8 @@ void Chess::setUpBoard()
     _gameOptions.rowY = 8;
 
     _grid->initializeChessSquares(pieceSize, "boardsquare.png");
-    FENtoBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    const std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    FENtoBoard(startFen);
 
     startGame();
 
@@ -66,7 +67,7 @@ void Chess::setUpBoard()
     }
     
     // Re-apply turn from the FEN string after startGame() resets currentTurnNo
-    syncTurnFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    syncTurnFromFEN(startFen);
 
     // Run move generation for the initial position.
     generateAllMoves();
@@ -79,9 +80,13 @@ Chess::BoardState Chess::boardStateFromGrid() const
         for (int x = 0; x < 8; x++) {
             ChessSquare* sq = _grid->getSquare(x, y);
             Bit* bit = sq ? sq->bit() : nullptr;
-            board[y * 8 + x] = bit ? bit->gameTag() : 0;
+            board.squares[y * 8 + x] = bit ? bit->gameTag() : 0;
         }
     }
+    board.whiteCastleKingSide = _whiteCastleKingSide;
+    board.whiteCastleQueenSide = _whiteCastleQueenSide;
+    board.blackCastleKingSide = _blackCastleKingSide;
+    board.blackCastleQueenSide = _blackCastleQueenSide;
     return board;
 }
 void Chess::FENtoBoard(const std::string& fen)
@@ -129,6 +134,9 @@ void Chess::FENtoBoard(const std::string& fen)
             file++;
         }
     }
+
+    parseCastlingRightsFromFEN(fen);
+    syncCastlingRightsWithBoardPresence();
 }
 
 void Chess::syncTurnFromFEN(const std::string& fen)
@@ -144,6 +152,70 @@ void Chess::syncTurnFromFEN(const std::string& fen)
             endTurn();
         }
     }
+}
+
+void Chess::parseCastlingRightsFromFEN(const std::string& fen)
+{
+    _whiteCastleKingSide = false;
+    _whiteCastleQueenSide = false;
+    _blackCastleKingSide = false;
+    _blackCastleQueenSide = false;
+
+    size_t firstSpace = fen.find(' ');
+    if (firstSpace == std::string::npos) {
+        return;
+    }
+    size_t secondSpace = fen.find(' ', firstSpace + 1);
+    if (secondSpace == std::string::npos) {
+        return;
+    }
+    size_t thirdSpace = fen.find(' ', secondSpace + 1);
+    std::string rights = (thirdSpace == std::string::npos)
+        ? fen.substr(secondSpace + 1)
+        : fen.substr(secondSpace + 1, thirdSpace - secondSpace - 1);
+
+    if (rights.find('K') != std::string::npos) _whiteCastleKingSide = true;
+    if (rights.find('Q') != std::string::npos) _whiteCastleQueenSide = true;
+    if (rights.find('k') != std::string::npos) _blackCastleKingSide = true;
+    if (rights.find('q') != std::string::npos) _blackCastleQueenSide = true;
+}
+
+void Chess::syncCastlingRightsWithBoardPresence()
+{
+    ChessSquare* e1 = _grid->getSquare(4, 0);
+    ChessSquare* a1 = _grid->getSquare(0, 0);
+    ChessSquare* h1 = _grid->getSquare(7, 0);
+    ChessSquare* e8 = _grid->getSquare(4, 7);
+    ChessSquare* a8 = _grid->getSquare(0, 7);
+    ChessSquare* h8 = _grid->getSquare(7, 7);
+
+    if (!e1 || !e1->bit() || e1->bit()->gameTag() != King) {
+        _whiteCastleKingSide = false;
+        _whiteCastleQueenSide = false;
+    }
+    if (!h1 || !h1->bit() || h1->bit()->gameTag() != Rook) {
+        _whiteCastleKingSide = false;
+    }
+    if (!a1 || !a1->bit() || a1->bit()->gameTag() != Rook) {
+        _whiteCastleQueenSide = false;
+    }
+
+    if (!e8 || !e8->bit() || e8->bit()->gameTag() != King + 128) {
+        _blackCastleKingSide = false;
+        _blackCastleQueenSide = false;
+    }
+    if (!h8 || !h8->bit() || h8->bit()->gameTag() != Rook + 128) {
+        _blackCastleKingSide = false;
+    }
+    if (!a8 || !a8->bit() || a8->bit()->gameTag() != Rook + 128) {
+        _blackCastleQueenSide = false;
+    }
+}
+
+bool Chess::canCastleOnGrid(int playerNumber, bool kingSide) const
+{
+    BoardState board = boardStateFromGrid();
+    return canCastleOnBoard(board, playerNumber, kingSide);
 }
 
 std::string Chess::boardToFEN() const
@@ -248,7 +320,13 @@ bool Chess::isValidMove(int fromX, int fromY, int toX, int toY, ChessPiece piece
         case Knight:
             return canKnightMove(fromX, fromY, toX, toY);
         case King:
-            return canKingMove(fromX, fromY, toX, toY);
+            if (canKingMove(fromX, fromY, toX, toY)) {
+                return true;
+            }
+            if (fromY != toY || std::abs(toX - fromX) != 2) {
+                return false;
+            }
+            return canCastleOnGrid(playerNumber, toX > fromX);
         case Rook: {
             uint64_t attacks = ratt(fromSq, boardOccupancy());
             return (attacks & (1ULL << toSq)) != 0ULL;
@@ -395,7 +473,7 @@ uint64_t Chess::boardOccupancy(const BoardState& board) const
 {
     uint64_t occ = 0ULL;
     for (int sq = 0; sq < 64; sq++) {
-        if (board[sq] != 0) {
+        if (board.squares[sq] != 0) {
             occ |= (1ULL << sq);
         }
     }
@@ -410,13 +488,13 @@ std::vector<BitMove> Chess::generateAllMovesForBoard(const BoardState& board, in
     uint64_t friendlyOcc = 0ULL;
 
     for (int sq = 0; sq < 64; sq++) {
-        if (board[sq] != 0 && (board[sq] & 128) == currentColor) {
+        if (board.squares[sq] != 0 && (board.squares[sq] & 128) == currentColor) {
             friendlyOcc |= (1ULL << sq);
         }
     }
 
     for (int fromSq = 0; fromSq < 64; fromSq++) {
-        const int tag = board[fromSq];
+        const int tag = board.squares[fromSq];
         if (tag == 0 || (tag & 128) != currentColor) {
             continue;
         }
@@ -434,13 +512,13 @@ std::vector<BitMove> Chess::generateAllMovesForBoard(const BoardState& board, in
 
                 if (oneStepY >= 0 && oneStepY < 8) {
                     int oneStepSq = oneStepY * 8 + fromX;
-                    if (board[oneStepSq] == 0) {
+                    if (board.squares[oneStepSq] == 0) {
                         targets |= (1ULL << oneStepSq);
 
                         int twoStepY = fromY + 2 * direction;
                         if (fromY == startRank && twoStepY >= 0 && twoStepY < 8) {
                             int twoStepSq = twoStepY * 8 + fromX;
-                            if (board[twoStepSq] == 0) {
+                            if (board.squares[twoStepSq] == 0) {
                                 targets |= (1ULL << twoStepSq);
                             }
                         }
@@ -453,13 +531,13 @@ std::vector<BitMove> Chess::generateAllMovesForBoard(const BoardState& board, in
                     int rightX = fromX + 1;
                     if (leftX >= 0) {
                         int leftSq = captureY * 8 + leftX;
-                        if (board[leftSq] != 0 && (board[leftSq] & 128) != currentColor) {
+                        if (board.squares[leftSq] != 0 && (board.squares[leftSq] & 128) != currentColor) {
                             targets |= (1ULL << leftSq);
                         }
                     }
                     if (rightX < 8) {
                         int rightSq = captureY * 8 + rightX;
-                        if (board[rightSq] != 0 && (board[rightSq] & 128) != currentColor) {
+                        if (board.squares[rightSq] != 0 && (board.squares[rightSq] & 128) != currentColor) {
                             targets |= (1ULL << rightSq);
                         }
                     }
@@ -501,6 +579,12 @@ std::vector<BitMove> Chess::generateAllMovesForBoard(const BoardState& board, in
                         targets |= (1ULL << (toY * 8 + toX));
                     }
                 }
+                if (canCastleOnBoard(board, playerNumber, true)) {
+                    targets |= (1ULL << (fromSq + 2));
+                }
+                if (canCastleOnBoard(board, playerNumber, false)) {
+                    targets |= (1ULL << (fromSq - 2));
+                }
                 break;
             }
             default:
@@ -523,11 +607,71 @@ std::vector<BitMove> Chess::generateAllMovesForBoard(const BoardState& board, in
     return moves;
 }
 
+bool Chess::isCastlingMove(const BoardState& board, const BitMove& move, int playerNumber) const
+{
+    const int from = move.from;
+    if (from < 0 || from >= 64 || move.to < 0 || move.to >= 64) {
+        return false;
+    }
+    const int kingTag = (playerNumber == 0) ? King : (King + 128);
+    return board.squares[from] == kingTag && std::abs(move.to - move.from) == 2;
+}
+
+bool Chess::canCastleOnBoard(const BoardState& board, int playerNumber, bool kingSide) const
+{
+    const int kingStart = (playerNumber == 0) ? 4 : 60;
+    const int rookStart = (playerNumber == 0)
+        ? (kingSide ? 7 : 0)
+        : (kingSide ? 63 : 56);
+    const int kingTag = (playerNumber == 0) ? King : (King + 128);
+    const int rookTag = (playerNumber == 0) ? Rook : (Rook + 128);
+
+    if (board.squares[kingStart] != kingTag || board.squares[rookStart] != rookTag) {
+        return false;
+    }
+
+    bool rights = false;
+    if (playerNumber == 0) {
+        rights = kingSide ? board.whiteCastleKingSide : board.whiteCastleQueenSide;
+    } else {
+        rights = kingSide ? board.blackCastleKingSide : board.blackCastleQueenSide;
+    }
+    if (!rights) {
+        return false;
+    }
+
+    const int step = kingSide ? 1 : -1;
+    const int between1 = kingStart + step;
+    const int between2 = kingStart + 2 * step;
+    if (board.squares[between1] != 0 || board.squares[between2] != 0) {
+        return false;
+    }
+    if (!kingSide) {
+        const int between3 = kingStart + 3 * step;
+        if (board.squares[between3] != 0) {
+            return false;
+        }
+    }
+
+    const int opponent = 1 - playerNumber;
+    if (isSquareAttacked(board, kingStart, opponent)) {
+        return false;
+    }
+    if (isSquareAttacked(board, between1, opponent)) {
+        return false;
+    }
+    if (isSquareAttacked(board, between2, opponent)) {
+        return false;
+    }
+
+    return true;
+}
+
 int Chess::findKingSquare(const BoardState& board, int playerNumber) const
 {
     const int kingTag = (playerNumber == 0) ? King : (King + 128);
     for (int sq = 0; sq < 64; sq++) {
-        if (board[sq] == kingTag) {
+        if (board.squares[sq] == kingTag) {
             return sq;
         }
     }
@@ -553,11 +697,11 @@ bool Chess::isSquareAttacked(const BoardState& board, int square, int attackerPl
             int fromX2 = sqX + 1;
             if (fromX1 >= 0) {
                 int fromSq = fromY * 8 + fromX1;
-                if (board[fromSq] == Pawn) return true;
+                if (board.squares[fromSq] == Pawn) return true;
             }
             if (fromX2 < 8) {
                 int fromSq = fromY * 8 + fromX2;
-                if (board[fromSq] == Pawn) return true;
+                if (board.squares[fromSq] == Pawn) return true;
             }
         }
     } else { // black pawns move south (-y), attack from north diagonals
@@ -567,11 +711,11 @@ bool Chess::isSquareAttacked(const BoardState& board, int square, int attackerPl
             int fromX2 = sqX + 1;
             if (fromX1 >= 0) {
                 int fromSq = fromY * 8 + fromX1;
-                if (board[fromSq] == (Pawn + 128)) return true;
+                if (board.squares[fromSq] == (Pawn + 128)) return true;
             }
             if (fromX2 < 8) {
                 int fromSq = fromY * 8 + fromX2;
-                if (board[fromSq] == (Pawn + 128)) return true;
+                if (board.squares[fromSq] == (Pawn + 128)) return true;
             }
         }
     }
@@ -581,7 +725,7 @@ bool Chess::isSquareAttacked(const BoardState& board, int square, int attackerPl
     while (knightAttackers) {
         int fromSq = getFirstBit(knightAttackers);
         knightAttackers &= (knightAttackers - 1);
-        int tag = board[fromSq];
+        int tag = board.squares[fromSq];
         if (tag != 0 && (tag & 128) == attackerColor && (tag & 0x7F) == Knight) {
             return true;
         }
@@ -592,7 +736,7 @@ bool Chess::isSquareAttacked(const BoardState& board, int square, int attackerPl
     while (kingAttackers) {
         int fromSq = getFirstBit(kingAttackers);
         kingAttackers &= (kingAttackers - 1);
-        int tag = board[fromSq];
+        int tag = board.squares[fromSq];
         if (tag != 0 && (tag & 128) == attackerColor && (tag & 0x7F) == King) {
             return true;
         }
@@ -603,7 +747,7 @@ bool Chess::isSquareAttacked(const BoardState& board, int square, int attackerPl
     while (rookRays) {
         int fromSq = getFirstBit(rookRays);
         rookRays &= (rookRays - 1);
-        int tag = board[fromSq];
+        int tag = board.squares[fromSq];
         if (tag != 0 && (tag & 128) == attackerColor) {
             ChessPiece p = static_cast<ChessPiece>(tag & 0x7F);
             if (p == Rook || p == Queen) {
@@ -616,7 +760,7 @@ bool Chess::isSquareAttacked(const BoardState& board, int square, int attackerPl
     while (bishopRays) {
         int fromSq = getFirstBit(bishopRays);
         bishopRays &= (bishopRays - 1);
-        int tag = board[fromSq];
+        int tag = board.squares[fromSq];
         if (tag != 0 && (tag & 128) == attackerColor) {
             ChessPiece p = static_cast<ChessPiece>(tag & 0x7F);
             if (p == Bishop || p == Queen) {
@@ -639,10 +783,10 @@ bool Chess::isKingInCheck(const BoardState& board, int playerNumber) const
 
 bool Chess::isMoveLegalOnBoard(BoardState& board, const BitMove& move, int playerNumber) const
 {
-    int captured = 0;
-    applyMove(board, move, captured);
+    MoveUndo undo;
+    applyMove(board, move, undo);
     bool legal = !isKingInCheck(board, playerNumber);
-    undoMove(board, move, captured);
+    undoMove(board, move, undo);
     return legal;
 }
 
@@ -662,7 +806,7 @@ int Chess::evaluateBoard(const BoardState& board, int aiPlayerNumber) const
     const int aiColor = aiPlayerNumber * 128;
 
     for (int sq = 0; sq < 64; sq++) {
-        int tag = board[sq];
+        int tag = board.squares[sq];
         if (tag == 0) {
             continue;
         }
@@ -694,17 +838,86 @@ int Chess::evaluateBoard(const BoardState& board, int aiPlayerNumber) const
     return score;
 }
 
-void Chess::applyMove(BoardState& board, const BitMove& move, int& capturedPiece) const
+void Chess::applyMove(BoardState& board, const BitMove& move, MoveUndo& undo) const
 {
-    capturedPiece = board[move.to];
-    board[move.to] = board[move.from];
-    board[move.from] = 0;
+    undo.capturedPiece = board.squares[move.to];
+    undo.whiteCastleKingSide = board.whiteCastleKingSide;
+    undo.whiteCastleQueenSide = board.whiteCastleQueenSide;
+    undo.blackCastleKingSide = board.blackCastleKingSide;
+    undo.blackCastleQueenSide = board.blackCastleQueenSide;
+
+    int moving = board.squares[move.from];
+    int piece = moving & 0x7F;
+    int color = moving & 128;
+
+    // Move piece.
+    board.squares[move.to] = moving;
+    board.squares[move.from] = 0;
+
+    // Handle castling rook move.
+    if (piece == King && std::abs(move.to - move.from) == 2) {
+        if (move.to > move.from) {
+            int rookFrom = move.from + 3;
+            int rookTo = move.from + 1;
+            board.squares[rookTo] = board.squares[rookFrom];
+            board.squares[rookFrom] = 0;
+        } else {
+            int rookFrom = move.from - 4;
+            int rookTo = move.from - 1;
+            board.squares[rookTo] = board.squares[rookFrom];
+            board.squares[rookFrom] = 0;
+        }
+    }
+
+    // Update castling rights when king/rook move.
+    if (piece == King) {
+        if (color == 0) {
+            board.whiteCastleKingSide = false;
+            board.whiteCastleQueenSide = false;
+        } else {
+            board.blackCastleKingSide = false;
+            board.blackCastleQueenSide = false;
+        }
+    } else if (piece == Rook) {
+        if (move.from == 0) board.whiteCastleQueenSide = false;
+        if (move.from == 7) board.whiteCastleKingSide = false;
+        if (move.from == 56) board.blackCastleQueenSide = false;
+        if (move.from == 63) board.blackCastleKingSide = false;
+    }
+
+    // Update castling rights when rook is captured on home square.
+    if (undo.capturedPiece == Rook && move.to == 0) board.whiteCastleQueenSide = false;
+    if (undo.capturedPiece == Rook && move.to == 7) board.whiteCastleKingSide = false;
+    if (undo.capturedPiece == (Rook + 128) && move.to == 56) board.blackCastleQueenSide = false;
+    if (undo.capturedPiece == (Rook + 128) && move.to == 63) board.blackCastleKingSide = false;
 }
 
-void Chess::undoMove(BoardState& board, const BitMove& move, int capturedPiece) const
+void Chess::undoMove(BoardState& board, const BitMove& move, const MoveUndo& undo) const
 {
-    board[move.from] = board[move.to];
-    board[move.to] = capturedPiece;
+    int moving = board.squares[move.to];
+    int piece = moving & 0x7F;
+
+    // Undo castling rook move first.
+    if (piece == King && std::abs(move.to - move.from) == 2) {
+        if (move.to > move.from) {
+            int rookFrom = move.from + 3;
+            int rookTo = move.from + 1;
+            board.squares[rookFrom] = board.squares[rookTo];
+            board.squares[rookTo] = 0;
+        } else {
+            int rookFrom = move.from - 4;
+            int rookTo = move.from - 1;
+            board.squares[rookFrom] = board.squares[rookTo];
+            board.squares[rookTo] = 0;
+        }
+    }
+
+    board.squares[move.from] = moving;
+    board.squares[move.to] = undo.capturedPiece;
+    board.whiteCastleKingSide = undo.whiteCastleKingSide;
+    board.whiteCastleQueenSide = undo.whiteCastleQueenSide;
+    board.blackCastleKingSide = undo.blackCastleKingSide;
+    board.blackCastleQueenSide = undo.blackCastleQueenSide;
 }
 
 int Chess::negamax(BoardState& board, int depth, int alpha, int beta, int playerNumber, int aiPlayerNumber) const
@@ -724,10 +937,10 @@ int Chess::negamax(BoardState& board, int depth, int alpha, int beta, int player
 
     int best = kNegInf;
     for (const BitMove& move : moves) {
-        int captured = 0;
-        applyMove(board, move, captured);
+        MoveUndo undo;
+        applyMove(board, move, undo);
         int score = -negamax(board, depth - 1, -beta, -alpha, 1 - playerNumber, aiPlayerNumber);
-        undoMove(board, move, captured);
+        undoMove(board, move, undo);
 
         best = std::max(best, score);
         alpha = std::max(alpha, score);
@@ -792,10 +1005,10 @@ void Chess::updateAI()
 
     for (const BitMove& move : moves) {
         _searchNodeCounter++; // root move node
-        int captured = 0;
-        applyMove(board, move, captured);
+        MoveUndo undo;
+        applyMove(board, move, undo);
         int score = -negamax(board, kChessAIDepth - 1, kNegInf, kPosInf, 1 - aiPlayer, aiPlayer);
-        undoMove(board, move, captured);
+        undoMove(board, move, undo);
 
         if (score > bestScore) {
             bestScore = score;
@@ -819,8 +1032,51 @@ void Chess::stopGame()
 
 void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
 {
-    // Handle piece capture - if destination has a piece, it's already been handled by pieceTaken
-    // Just need to end the turn
+    ChessSquare* srcSquare = dynamic_cast<ChessSquare*>(&src);
+    ChessSquare* dstSquare = dynamic_cast<ChessSquare*>(&dst);
+    if (!srcSquare || !dstSquare) {
+        endTurn();
+        return;
+    }
+
+    int fromX = srcSquare->getColumn();
+    int fromY = srcSquare->getRow();
+    int toX = dstSquare->getColumn();
+    int toY = dstSquare->getRow();
+    int piece = bit.gameTag() & 0x7F;
+    int color = bit.gameTag() & 128;
+
+    if (piece == King) {
+        if (color == 0) {
+            _whiteCastleKingSide = false;
+            _whiteCastleQueenSide = false;
+        } else {
+            _blackCastleKingSide = false;
+            _blackCastleQueenSide = false;
+        }
+
+        // Complete the rook move when castling.
+        if (std::abs(toX - fromX) == 2 && fromY == toY) {
+            bool kingSide = toX > fromX;
+            int rookFromX = kingSide ? 7 : 0;
+            int rookToX = kingSide ? 5 : 3;
+            ChessSquare* rookSrc = _grid->getSquare(rookFromX, fromY);
+            ChessSquare* rookDst = _grid->getSquare(rookToX, fromY);
+            if (rookSrc && rookDst && rookSrc->bit()) {
+                Bit* rook = rookSrc->bit();
+                rookDst->setBit(rook);
+                rookSrc->draggedBitTo(rook, rookDst);
+                rook->setPosition(rookDst->getPosition());
+            }
+        }
+    } else if (piece == Rook) {
+        if (fromX == 0 && fromY == 0) _whiteCastleQueenSide = false;
+        if (fromX == 7 && fromY == 0) _whiteCastleKingSide = false;
+        if (fromX == 0 && fromY == 7) _blackCastleQueenSide = false;
+        if (fromX == 7 && fromY == 7) _blackCastleKingSide = false;
+    }
+
+    syncCastlingRightsWithBoardPresence();
     endTurn();
 
     // Run move generation for the side to move after turn switch.
@@ -885,108 +1141,9 @@ std::vector<BitMove> Chess::generateLegalMoves()
 
 std::vector<BitMove> Chess::generateAllMoves()
 {
-    std::vector<BitMove> moves;
     Player* currentPlayer = getCurrentPlayer();
     if (!currentPlayer) {
-        return moves;
+        return {};
     }
-    int playerNumber = currentPlayer->playerNumber();
-    int currentColor = playerNumber * 128;
-    
-    const uint64_t occ = boardOccupancy();
-    uint64_t friendlyOcc = 0ULL;
-
-    _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
-        Bit* bit = square->bit();
-        if (bit && (bit->gameTag() & 128) == currentColor) {
-            friendlyOcc |= (1ULL << (y * 8 + x));
-        }
-    });
-
-    _grid->forEachSquare([&](ChessSquare* square, int fromX, int fromY) {
-        Bit* bit = square->bit();
-        if (!bit || (bit->gameTag() & 128) != currentColor) {
-            return;
-        }
-
-        const ChessPiece piece = static_cast<ChessPiece>(bit->gameTag() & 0x7F);
-        const int fromSq = fromY * 8 + fromX;
-        uint64_t targets = 0ULL;
-
-        switch (piece) {
-            case Pawn: {
-                const int direction = (playerNumber == 0) ? 1 : -1;
-                const int startRank = (playerNumber == 0) ? 1 : 6;
-
-                int oneStepY = fromY + direction;
-                if (_grid->isValid(fromX, oneStepY) && _grid->getSquare(fromX, oneStepY)->bit() == nullptr) {
-                    targets |= (1ULL << (oneStepY * 8 + fromX));
-                    int twoStepY = fromY + 2 * direction;
-                    if (fromY == startRank && _grid->isValid(fromX, twoStepY) &&
-                        _grid->getSquare(fromX, twoStepY)->bit() == nullptr) {
-                        targets |= (1ULL << (twoStepY * 8 + fromX));
-                    }
-                }
-
-                int captureY = fromY + direction;
-                int leftX = fromX - 1;
-                int rightX = fromX + 1;
-                if (_grid->isValid(leftX, captureY) && isOccupiedByOpponent(leftX, captureY, playerNumber)) {
-                    targets |= (1ULL << (captureY * 8 + leftX));
-                }
-                if (_grid->isValid(rightX, captureY) && isOccupiedByOpponent(rightX, captureY, playerNumber)) {
-                    targets |= (1ULL << (captureY * 8 + rightX));
-                }
-                break;
-            }
-            case Knight: {
-                static const int offsets[8][2] = {
-                    {1, 2}, {2, 1}, {2, -1}, {1, -2},
-                    {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}
-                };
-                for (const auto &o : offsets) {
-                    int toX = fromX + o[0];
-                    int toY = fromY + o[1];
-                    if (_grid->isValid(toX, toY)) {
-                        targets |= (1ULL << (toY * 8 + toX));
-                    }
-                }
-                break;
-            }
-            case Bishop:
-                targets = batt(fromSq, occ);
-                break;
-            case Rook:
-                targets = ratt(fromSq, occ);
-                break;
-            case Queen:
-                targets = batt(fromSq, occ) | ratt(fromSq, occ);
-                break;
-            case King: {
-                static const int offsets[8][2] = {
-                    {1, 1}, {1, 0}, {1, -1}, {0, -1},
-                    {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}
-                };
-                for (const auto &o : offsets) {
-                    int toX = fromX + o[0];
-                    int toY = fromY + o[1];
-                    if (_grid->isValid(toX, toY)) {
-                        targets |= (1ULL << (toY * 8 + toX));
-                    }
-                }
-                break;
-            }
-            default:
-                break;
-        }
-
-        targets &= ~friendlyOcc;
-
-        while (targets) {
-            int toSq = getFirstBit(targets);
-            targets &= (targets - 1);
-            moves.push_back(BitMove(fromSq, toSq, piece));
-        }
-    });
-    return moves;
+    return generateAllMovesForBoard(boardStateFromGrid(), currentPlayer->playerNumber());
 }

@@ -45,7 +45,21 @@ public:
     int getLastSearchDepth() const { return _lastSearchDepth; }
 
 private:
-    using BoardState = std::array<int, 64>;
+    struct BoardState {
+        std::array<int, 64> squares{};
+        bool whiteCastleKingSide = false;
+        bool whiteCastleQueenSide = false;
+        bool blackCastleKingSide = false;
+        bool blackCastleQueenSide = false;
+    };
+
+    struct MoveUndo {
+        int capturedPiece = 0;
+        bool whiteCastleKingSide = false;
+        bool whiteCastleQueenSide = false;
+        bool blackCastleKingSide = false;
+        bool blackCastleQueenSide = false;
+    };
 
     Bit* PieceForPlayer(const int playerNumber, ChessPiece piece);
     Player* ownerAt(int x, int y) const;
@@ -57,9 +71,14 @@ private:
     uint64_t boardOccupancy(const BoardState& board) const;
     int evaluateBoard(const BoardState& board, int aiPlayerNumber) const;
     int negamax(BoardState& board, int depth, int alpha, int beta, int playerNumber, int aiPlayerNumber) const;
-    void applyMove(BoardState& board, const BitMove& move, int& capturedPiece) const;
-    void undoMove(BoardState& board, const BitMove& move, int capturedPiece) const;
+    void applyMove(BoardState& board, const BitMove& move, MoveUndo& undo) const;
+    void undoMove(BoardState& board, const BitMove& move, const MoveUndo& undo) const;
     bool applyBestMoveToGrid(const BitMove& move);
+    bool isCastlingMove(const BoardState& board, const BitMove& move, int playerNumber) const;
+    bool canCastleOnBoard(const BoardState& board, int playerNumber, bool kingSide) const;
+    bool canCastleOnGrid(int playerNumber, bool kingSide) const;
+    void parseCastlingRightsFromFEN(const std::string& fen);
+    void syncCastlingRightsWithBoardPresence();
     int findKingSquare(const BoardState& board, int playerNumber) const;
     bool isSquareAttacked(const BoardState& board, int square, int attackerPlayerNumber) const;
     bool isKingInCheck(const BoardState& board, int playerNumber) const;
@@ -82,4 +101,8 @@ private:
     uint64_t _lastSearchNodeCount = 0;
     double _lastSearchTimeMs = 0.0;
     int _lastSearchDepth = 0;
+    bool _whiteCastleKingSide = false;
+    bool _whiteCastleQueenSide = false;
+    bool _blackCastleKingSide = false;
+    bool _blackCastleQueenSide = false;
 };
